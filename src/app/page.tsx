@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { registerUser, loginUser } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 export default function Home() {
   const router = useRouter();
@@ -225,6 +226,15 @@ export default function Home() {
                   )}
                 </button>
               </div>
+              {/* Link Esqueceu a senha - abaixo do campo, canto esquerdo */}
+              <div className="flex justify-start">
+                <Link 
+                  href="/recuperar-senha" 
+                  className="text-xs text-[#ffa506] hover:underline"
+                >
+                  Esqueceu a senha?
+                </Link>
+              </div>
             </div>
 
             <Button
@@ -404,6 +414,15 @@ export default function Home() {
                   <Eye className="w-5 h-5" />
                 )}
               </button>
+            </div>
+            {/* Link Esqueceu a senha - abaixo do campo, canto esquerdo */}
+            <div className="flex justify-start">
+              <Link 
+                href="/recuperar-senha" 
+                className="text-xs text-[#ffa506] hover:underline"
+              >
+                Esqueceu a senha?
+              </Link>
             </div>
           </div>
 
