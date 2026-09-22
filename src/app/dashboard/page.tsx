@@ -1,425 +1,94 @@
 'use client';
+import {useEffect,useRef,useState} from 'react';
+import Link from 'next/link';
+import {useRouter} from 'next/navigation';
+import {ArrowRight,Eye,EyeOff,RefreshCw,Wallet,Check,Target,CalendarDays,Calculator,ScanLine,PieChart,Repeat,TrendingUp,ArrowDownLeft,ArrowUpRight,ChartNoAxesCombined,ChevronRight} from 'lucide-react';
+import {HeaderIdentity} from '@/components/finance/finance-ui';
+import {SpendingPreview} from '@/components/finance/spending-preview';
+import {QuickEntry} from '@/components/finance/quick-entry';
+import {Button} from '@/components/ui/button';
+import {Dialog,DialogContent,DialogDescription,DialogHeader,DialogTitle} from '@/components/ui/dialog';
+import {Tabs,TabsList,TabsTrigger,TabsContent} from '@/components/ui/tabs';
+import {BottomNav} from '@/components/custom/bottom-nav';
+import {apiRequest,useResource} from '@/hooks/useResource';
+import {ResourceState,formatMoney,formatDate} from '@/components/data/resource-state';
+import {nextHomeAction} from '@/lib/domain/overview';
+import type {Overview,ProjectionItem} from '@/lib/overview.types';
+export default function DashboardPage(){
+ const router=useRouter(),resource=useResource<Overview>('/api/overview');const {data,reload}=resource;
+ const [visible,setVisible]=useState(true),[quick,setQuick]=useState<'account'|'transaction'|null>(null),[details,setDetails]=useState(false);
+ const [syncing,setSyncing]=useState(true),[syncError,setSyncError]=useState(''),[syncVersion,setSyncVersion]=useState(0);
+ const [savingPreference,setSavingPreference]=useState(false),[actionError,setActionError]=useState(''),[message,setMessage]=useState('');
+ const [tool,setTool]=useState<'simulator'|'radar'|null>(null);
+ const [dueFilter,setDueFilter]=useState<'all'|'overdue'|'week'>('all');
+ const preferenceBusy=useRef(false);
+ useEffect(()=>{
+  let active=true;setSyncing(true);setSyncError('');
+  apiRequest('/api/overview',{method:'POST',body:'{}'}).then(()=>{if(active)reload();}).catch(e=>{if(active)setSyncError(e.message);}).finally(()=>{if(active)setSyncing(false);});
+  return ()=>{active=false;};
+ },[reload,syncVersion]);
+ async function preference(values:{introducao_oculta?:boolean;meta_prioritaria_id?:string|null}){
+  if(preferenceBusy.current)return;preferenceBusy.current=true;setSavingPreference(true);setActionError('');
+  try{await apiRequest('/api/overview',{method:'PATCH',body:JSON.stringify(values)});reload();}
+  catch(e){setActionError(e instanceof Error?e.message:'Não foi possível salvar a preferência.');}
+  finally{preferenceBusy.current=false;setSavingPreference(false);}
+ }
+ const money=(n:number)=>visible?formatMoney(n):'••••••';
+ const p=data?.projection,action=data?nextHomeAction(data):null;
+ const hasIncluded=!!data?.accounts.some(a=>a.incluir_no_disponivel);
+ const ready=data?.hasPlus&&hasIncluded&&!syncing&&!syncError&&!data?.recurrenceGapMonth;
+ const weekEnd=data?new Date(Date.parse(data.today+'T12:00:00Z')+6*86400000).toISOString().slice(0,10):'';
+ const dueItems=data?.upcoming.filter(item=>dueFilter==='all'||(dueFilter==='overdue'?item.vencimento<data.today:item.vencimento>=data.today&&item.vencimento<=weekEnd))??[];
+ const progress=data?(data.accounts.length?1:0)+(data.counts.manualTransactions?1:0):0;
+ return <main className="app-shell finance-shell home-screen">
+  <a href="#home-content" className="home-skip">Pular para o resumo</a>
+  <HeaderIdentity name={data?.profile.nome||'Bem-vindo'} onAlerts={()=>router.push('/notificacoes')} onProfile={()=>router.push('/perfil')}/>
+  <div className="home-toolbar"><p>{data?`Seu mês até ${formatDate(data.monthEnd)}`:'Seu mês, com clareza'}</p><div><Button size="icon" variant="ghost" onClick={()=>setVisible(v=>!v)} aria-label={visible?'Ocultar todos os valores':'Mostrar todos os valores'}>{visible?<Eye/>:<EyeOff/>}</Button><Button size="icon" variant="ghost" disabled={syncing} aria-label="Atualizar resumo e recorrências" onClick={()=>setSyncVersion(v=>v+1)}><RefreshCw className={syncing?'animate-spin':''}/></Button></div></div>
+  <div id="home-content" tabIndex={-1} className="content-stack">
+   <ResourceState {...resource} retry={()=>{reload();setSyncVersion(v=>v+1);}}/>
+   {message&&<p role="status" className="daily-message">{message}</p>}
+   {actionError&&<p role="alert" className="glass-panel p-4 money-negative">{actionError}</p>}
+   {syncError&&<div role="alert" className="glass-panel p-4"><p>Não foi possível atualizar as recorrências. A projeção está indisponível para evitar uma estimativa incompleta.</p><Button variant="outline" onClick={()=>setSyncVersion(v=>v+1)}>Tentar novamente</Button></div>}
+   {data&&p&&<>
 
-import { useState, useEffect } from 'react';
-import { BottomNav } from '@/components/custom/bottom-nav';
-import { Eye, EyeOff, TrendingUp, TrendingDown, Calendar, Plus } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend } from 'recharts';
-import type { PeriodoRecorrencia } from '@/lib/types';
-
-// Dados mockados
-const gastosPorCategoria = [
-  { categoria: 'Alimentação', valor: 1200, cor: '#ef4444' },
-  { categoria: 'Transporte', valor: 450, cor: '#3b82f6' },
-  { categoria: 'Moradia', valor: 1800, cor: '#8b5cf6' },
-  { categoria: 'Lazer', valor: 300, cor: '#f59e0b' },
-  { categoria: 'Outros', valor: 250, cor: '#6b7280' },
-];
-
-const vencimentosProximos = [
-  { id: '1', descricao: 'Aluguel', valor: 1800, data: '2025-01-05', tipo: 'conta', pago: false },
-  { id: '2', descricao: 'Cartão Nubank', valor: 850, data: '2025-01-10', tipo: 'cartao', pago: false },
-  { id: '3', descricao: 'Internet', valor: 120, data: '2025-01-15', tipo: 'conta', pago: false },
-];
-
-const categoriasMock = [
-  'Alimentação',
-  'Transporte',
-  'Moradia',
-  'Saúde',
-  'Educação',
-  'Lazer',
-  'Compras',
-  'Salário',
-  'Freelance',
-];
-
-const periodosRecorrencia: { value: PeriodoRecorrencia; label: string }[] = [
-  { value: 'diario', label: 'Diário' },
-  { value: 'semanal', label: 'Semanal' },
-  { value: 'quinzenal', label: 'Quinzenal' },
-  { value: 'mensal', label: 'Mensal' },
-  { value: 'bimestral', label: 'Bimestral' },
-  { value: 'trimestral', label: 'Trimestral' },
-  { value: 'semestral', label: 'Semestral' },
-  { value: 'anual', label: 'Anual' },
-];
-
-export default function DashboardPage() {
-  const [saldoVisivel, setSaldoVisivel] = useState(true);
-  const [mounted, setMounted] = useState(false);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [tipo, setTipo] = useState<'receita' | 'despesa'>('despesa');
-  const [descricao, setDescricao] = useState('');
-  const [valor, setValor] = useState('');
-  const [categoria, setCategoria] = useState('');
-  const [data, setData] = useState('');
-  const [isRecorrente, setIsRecorrente] = useState(false);
-  const [periodoRecorrencia, setPeriodoRecorrencia] = useState<PeriodoRecorrencia>('mensal');
-  const [diaCobranca, setDiaCobranca] = useState('');
-  const [dataFinalRecorrencia, setDataFinalRecorrencia] = useState('');
-  
-  const saldoTotal = 5420.50;
-  const receitasMes = 8500.00;
-  const despesasMes = 4000.00;
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  const formatarData = (dataString: string) => {
-    if (!mounted) return '';
-    const data = new Date(dataString);
-    return data.toLocaleDateString('pt-BR');
-  };
-
-  const handleSubmit = () => {
-    // Aqui seria a lógica para salvar a transação ou assinatura
-    if (isRecorrente) {
-      console.log({ 
-        tipo, 
-        descricao, 
-        valor, 
-        categoria, 
-        periodoRecorrencia, 
-        diaCobranca,
-        dataFinalRecorrencia,
-        isRecorrente: true 
-      });
-    } else {
-      console.log({ tipo, descricao, valor, categoria, data, isRecorrente: false });
-    }
-    
-    setDialogOpen(false);
-    // Reset form
-    setDescricao('');
-    setValor('');
-    setCategoria('');
-    setData('');
-    setIsRecorrente(false);
-    setPeriodoRecorrencia('mensal');
-    setDiaCobranca('');
-    setDataFinalRecorrencia('');
-  };
-
-  return (
-    <div className="min-h-screen bg-[#0f0f16] pb-20">
-      {/* Header */}
-      <div className="bg-gradient-to-b from-[#252531] to-[#16161f] p-6 rounded-b-3xl shadow-xl">
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <p className="text-[#9ca3af] text-sm">Olá,</p>
-            <h1 className="text-2xl font-bold">Usuário</h1>
-          </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-[#9ca3af] hover:text-white hover:bg-[#262633] rounded-full"
-          >
-            <Calendar className="w-5 h-5" />
-          </Button>
-        </div>
-
-        {/* Saldo Total */}
-        <div className="bg-[#262633] rounded-2xl p-6 border border-[#262633]">
-          <div className="flex justify-between items-center mb-2">
-            <p className="text-[#9ca3af] text-sm">Saldo Total</p>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setSaldoVisivel(!saldoVisivel)}
-              className="text-[#9ca3af] hover:text-white h-8 w-8"
-            >
-              {saldoVisivel ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-            </Button>
-          </div>
-          <h2 className="text-4xl font-bold text-[#ffa506]">
-            {saldoVisivel ? `R$ ${saldoTotal.toFixed(2)}` : 'R$ ••••••'}
-          </h2>
-
-          {/* Receitas e Despesas */}
-          <div className="grid grid-cols-2 gap-4 mt-6">
-            <div className="bg-[#16161f] rounded-xl p-4">
-              <div className="flex items-center space-x-2 mb-2">
-                <div className="w-8 h-8 bg-[#10b981]/20 rounded-lg flex items-center justify-center">
-                  <TrendingUp className="w-4 h-4 text-[#10b981]" />
-                </div>
-                <p className="text-[#9ca3af] text-xs">Receitas</p>
-              </div>
-              <p className="text-lg font-semibold text-[#10b981]">
-                R$ {receitasMes.toFixed(2)}
-              </p>
-            </div>
-
-            <div className="bg-[#16161f] rounded-xl p-4">
-              <div className="flex items-center space-x-2 mb-2">
-                <div className="w-8 h-8 bg-[#ef4444]/20 rounded-lg flex items-center justify-center">
-                  <TrendingDown className="w-4 h-4 text-[#ef4444]" />
-                </div>
-                <p className="text-[#9ca3af] text-xs">Despesas</p>
-              </div>
-              <p className="text-lg font-semibold text-[#ef4444]">
-                R$ {despesasMes.toFixed(2)}
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Gastos por Categoria */}
-      <div className="p-6">
-        <h3 className="text-lg font-semibold mb-4">Gastos por Categoria</h3>
-        <div className="bg-gradient-to-b from-[#252531] to-[#16161f] rounded-2xl p-6 border border-[#262633]">
-          <ResponsiveContainer width="100%" height={200}>
-            <PieChart>
-              <Pie
-                data={gastosPorCategoria}
-                cx="50%"
-                cy="50%"
-                innerRadius={60}
-                outerRadius={80}
-                paddingAngle={5}
-                dataKey="valor"
-              >
-                {gastosPorCategoria.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.cor} />
-                ))}
-              </Pie>
-            </PieChart>
-          </ResponsiveContainer>
-
-          <div className="space-y-3 mt-4">
-            {gastosPorCategoria.map((item) => (
-              <div key={item.categoria} className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <div
-                    className="w-3 h-3 rounded-full"
-                    style={{ backgroundColor: item.cor }}
-                  />
-                  <span className="text-sm">{item.categoria}</span>
-                </div>
-                <span className="text-sm font-semibold">R$ {item.valor.toFixed(2)}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Vencimentos Próximos */}
-      <div className="px-6 pb-6">
-        <h3 className="text-lg font-semibold mb-4">Vencimentos Próximos</h3>
-        <div className="space-y-3">
-          {vencimentosProximos.map((item) => (
-            <div
-              key={item.id}
-              className="bg-gradient-to-b from-[#252531] to-[#16161f] rounded-xl p-4 border border-[#262633] flex items-center justify-between"
-            >
-              <div className="flex-1">
-                <p className="font-semibold">{item.descricao}</p>
-                <p className="text-sm text-[#9ca3af]">
-                  {formatarData(item.data)}
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="font-semibold text-[#ef4444]">
-                  R$ {item.valor.toFixed(2)}
-                </p>
-                <span className="text-xs text-[#9ca3af]">
-                  {item.tipo === 'cartao' ? 'Cartão' : 'Conta'}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Botão Flutuante - Novo Lançamento */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogTrigger asChild>
-          <Button
-            className="fixed bottom-24 right-6 w-14 h-14 rounded-full bg-gradient-to-r from-[#ffa506] to-[#ff8800] hover:from-[#ff8800] hover:to-[#ffa506] shadow-2xl"
-            size="icon"
-          >
-            <Plus className="w-6 h-6" />
-          </Button>
-        </DialogTrigger>
-        <DialogContent className="bg-[#16161f] border-[#262633] text-white max-w-md max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Novo Lançamento</DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-4 mt-4">
-            {/* Tipo */}
-            <div className="flex space-x-3">
-              <Button
-                onClick={() => setTipo('despesa')}
-                className={`flex-1 h-12 rounded-xl ${
-                  tipo === 'despesa'
-                    ? 'bg-[#ef4444] hover:bg-[#ef4444]/80'
-                    : 'bg-[#262633] hover:bg-[#262633]/80'
-                }`}
-              >
-                <TrendingDown className="w-5 h-5 mr-2" />
-                Despesa
-              </Button>
-              <Button
-                onClick={() => setTipo('receita')}
-                className={`flex-1 h-12 rounded-xl ${
-                  tipo === 'receita'
-                    ? 'bg-[#10b981] hover:bg-[#10b981]/80'
-                    : 'bg-[#262633] hover:bg-[#262633]/80'
-                }`}
-              >
-                <TrendingUp className="w-5 h-5 mr-2" />
-                Receita
-              </Button>
-            </div>
-
-            {/* Descrição */}
-            <div className="space-y-2">
-              <Label>Descrição</Label>
-              <Input
-                placeholder="Ex: Supermercado"
-                value={descricao}
-                onChange={(e) => setDescricao(e.target.value)}
-                className="bg-[#262633] border-[#262633] h-12 rounded-xl"
-              />
-            </div>
-
-            {/* Valor */}
-            <div className="space-y-2">
-              <Label>Valor</Label>
-              <Input
-                type="number"
-                placeholder="0,00"
-                value={valor}
-                onChange={(e) => setValor(e.target.value)}
-                className="bg-[#262633] border-[#262633] h-12 rounded-xl"
-              />
-            </div>
-
-            {/* Categoria */}
-            <div className="space-y-2">
-              <Label>Categoria</Label>
-              <Select value={categoria} onValueChange={setCategoria}>
-                <SelectTrigger className="bg-[#262633] border-[#262633] h-12 rounded-xl">
-                  <SelectValue placeholder="Selecione uma categoria" />
-                </SelectTrigger>
-                <SelectContent className="bg-[#16161f] border-[#262633]">
-                  {categoriasMock.map((cat) => (
-                    <SelectItem 
-                      key={cat} 
-                      value={cat} 
-                      className="text-white hover:bg-[#262633] focus:bg-[#262633] focus:text-white"
-                    >
-                      {cat}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Checkbox Recorrente */}
-            <div className="flex items-center space-x-3 p-4 bg-[#262633] rounded-xl">
-              <Checkbox 
-                id="recorrente" 
-                checked={isRecorrente}
-                onCheckedChange={(checked) => setIsRecorrente(checked as boolean)}
-                className="border-[#9ca3af]"
-              />
-              <div className="flex items-center space-x-2">
-                <TrendingUp className="w-5 h-5 text-[#ffa506]" />
-                <Label htmlFor="recorrente" className="cursor-pointer">
-                  Lançamento recorrente
-                </Label>
-              </div>
-            </div>
-
-            {/* Campos condicionais - Recorrente */}
-            {isRecorrente ? (
-              <>
-                {/* Período de Recorrência */}
-                <div className="space-y-2">
-                  <Label>Período de Recorrência</Label>
-                  <Select value={periodoRecorrencia} onValueChange={(value) => setPeriodoRecorrencia(value as PeriodoRecorrencia)}>
-                    <SelectTrigger className="bg-[#262633] border-[#262633] h-12 rounded-xl">
-                      <SelectValue placeholder="Selecione o período" />
-                    </SelectTrigger>
-                    <SelectContent className="bg-[#16161f] border-[#262633]">
-                      {periodosRecorrencia.map((periodo) => (
-                        <SelectItem 
-                          key={periodo.value} 
-                          value={periodo.value}
-                          className="text-white hover:bg-[#262633] focus:bg-[#262633] focus:text-white"
-                        >
-                          {periodo.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Dia da Cobrança */}
-                <div className="space-y-2">
-                  <Label>Dia da Cobrança</Label>
-                  <Input
-                    type="number"
-                    min="1"
-                    max="31"
-                    placeholder="Ex: 5"
-                    value={diaCobranca}
-                    onChange={(e) => setDiaCobranca(e.target.value)}
-                    className="bg-[#262633] border-[#262633] h-12 rounded-xl"
-                  />
-                  <p className="text-xs text-[#9ca3af]">
-                    Dia do mês em que a cobrança será realizada
-                  </p>
-                </div>
-
-                {/* Data Final da Recorrência */}
-                <div className="space-y-2">
-                  <Label>Data Final da Recorrência (Opcional)</Label>
-                  <Input
-                    type="date"
-                    value={dataFinalRecorrencia}
-                    onChange={(e) => setDataFinalRecorrencia(e.target.value)}
-                    className="bg-[#262633] border-[#262633] h-12 rounded-xl"
-                  />
-                  <p className="text-xs text-[#9ca3af]">
-                    Deixe em branco para recorrência indefinida
-                  </p>
-                </div>
-              </>
-            ) : (
-              /* Data - apenas para lançamentos únicos */
-              <div className="space-y-2">
-                <Label>Data</Label>
-                <Input
-                  type="date"
-                  value={data}
-                  onChange={(e) => setData(e.target.value)}
-                  className="bg-[#262633] border-[#262633] h-12 rounded-xl"
-                />
-              </div>
-            )}
-
-            {/* Botão Salvar */}
-            <Button
-              onClick={handleSubmit}
-              className="w-full bg-gradient-to-r from-[#ffa506] to-[#ff8800] hover:from-[#ff8800] hover:to-[#ffa506] h-12 rounded-xl"
-            >
-              {isRecorrente ? 'Criar Recorrência' : 'Salvar Lançamento'}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <BottomNav />
-    </div>
-  );
+    <section className="balance-card home-balance" aria-labelledby="balance-title"><div className="home-heading"><h2 id="balance-title">Seu saldo agora</h2><Wallet aria-hidden="true"/></div><p className="balance-card__value">{data.accounts.length?money(p.cash):'—'}</p><p className="daily-hint">Dinheiro nas contas incluídas no resumo.</p><div className="home-summary-grid"><button type="button" onClick={()=>setDetails(true)}><span><CalendarDays aria-hidden="true"/>A pagar neste mês</span><strong>{money(p.committed)}</strong></button><Link href="/metas"><span><Target aria-hidden="true"/>Reservado para metas</span><strong>{money(p.reserved)}</strong></Link></div><Link className="subtle-link mt-4" href="/contas">Ver contas e saldos<ArrowRight/></Link></section>
+    <nav className="home-quick-grid home-quick-grid-expanded" aria-label="Atalhos do dia a dia"><Link className="home-quick" href="/limites"><span><PieChart aria-hidden="true"/></span><strong>Orçamento</strong><small>Limites por categoria</small></Link><Link className="home-quick" href="/recorrencias"><span><Repeat aria-hidden="true"/></span><strong>Recorrências</strong><small>Contas recorrentes</small></Link><button type="button" className="home-quick" onClick={()=>setTool('simulator')} aria-haspopup="dialog"><span><Calculator aria-hidden="true"/></span><strong>Simulador</strong><small>Teste uma despesa</small></button><button type="button" className="home-quick" onClick={()=>setTool('radar')} aria-haspopup="dialog"><span><ScanLine aria-hidden="true"/></span><strong>Radar</strong><small>Confira vencimentos</small></button></nav>
+    {!data.preferences.introducao_oculta&&<section className="glass-panel home-onboarding" aria-labelledby="welcome-title"><div className="home-heading"><h2 id="welcome-title">{progress===2?'Seu controle começou':'Comece pelo essencial'}</h2><span>{progress}/2</span></div><p className="daily-hint">{progress===2?'Conta e primeiro lançamento registrados. Agora você pode acompanhar o mês.':'Seu resumo ganha vida com estes dois passos.'}</p><div className="home-setup-progress" role="progressbar" aria-label="Primeiros passos" aria-valuemin={0} aria-valuemax={2} aria-valuenow={progress}><span style={{width:`${progress/2*100}%`}}/></div><ol className="home-steps"><li><span className={data.accounts.length?'is-done':''}>{data.accounts.length?<Check aria-label="Concluído"/>:'1'}</span><div><strong>Cadastre uma conta</strong><p>Saldo de abertura e data de referência.</p></div></li><li><span className={data.counts.manualTransactions?'is-done':''}>{data.counts.manualTransactions?<Check aria-label="Concluído"/>:'2'}</span><div><strong>Registre um lançamento</strong><p>Uma receita ou despesa real do seu dia.</p></div></li></ol><div className="home-actions">{progress<2&&<Button onClick={()=>setQuick(data.accounts.length?'transaction':'account')}>{data.accounts.length?'Registrar primeiro lançamento':'Cadastrar primeira conta'}<ArrowRight/></Button>}<Button variant="ghost" disabled={savingPreference} onClick={()=>preference({introducao_oculta:true})}>{progress===2?'Concluir introdução':'Pular por enquanto'}</Button></div></section>}
+    {action&&(data.preferences.introducao_oculta||progress===2)&&<section className="glass-panel p-5 space-y-3" aria-labelledby="next-title"><h2 id="next-title" className="home-section-title"><TrendingUp aria-hidden="true"/>Próximo passo</h2><p className="daily-hint">{action.reason}</p>{action.quick?<Button variant="outline" onClick={()=>setQuick(action.quick!)}>{action.label}<ArrowRight/></Button>:<Button asChild variant="outline"><Link href={action.href!}>{action.label}<ArrowRight/></Link></Button>}</section>}
+    <Tabs defaultValue="summary" className="home-dashboard-tabs"><TabsList className="plan-tabs" aria-label="Visões do início"><TabsTrigger value="summary"><ChartNoAxesCombined aria-hidden="true"/>Meu mês</TabsTrigger><TabsTrigger value="planning"><Target aria-hidden="true"/>Planejamento</TabsTrigger></TabsList><TabsContent value="summary" className="content-stack">
+    <section id="compromissos" className="glass-panel p-5" aria-labelledby="due-title"><div className="home-heading"><h2 id="due-title">Radar de compromissos</h2><CalendarDays aria-hidden="true"/></div><div className="flex flex-wrap gap-2 mt-4" role="group" aria-label="Filtrar compromissos">{([{id:'all',label:'Próximos'},{id:'overdue',label:'Vencidos'},{id:'week',label:'Em 7 dias'}] as const).map(filter=><Button key={filter.id} size="sm" variant={dueFilter===filter.id?'default':'outline'} aria-pressed={dueFilter===filter.id} onClick={()=>setDueFilter(filter.id)}>{filter.label}</Button>)}</div><p className="daily-hint">Prévia dos 6 primeiros compromissos até o fim do mês.</p>{dueItems.length?<ul className="home-list">{dueItems.map(item=><ItemRow key={item.id} item={item} today={data.today} money={money}/>)}</ul>:<p className="daily-hint">Nenhum compromisso nesta prévia para o filtro escolhido. Consulte todos os registros para ver o restante.</p>}<Button variant="ghost" size="sm" onClick={()=>setDetails(true)}>Consultar todos os registros<ArrowRight/></Button></section>
+    <section className="glass-panel p-5" aria-labelledby="month-title"><div className="home-heading"><h2 id="month-title">Entradas e saídas do mês</h2><Link className="subtle-link" href="/lancamentos">Ver lançamentos</Link></div><dl className="home-month-cards"><div><dt><ArrowDownLeft aria-hidden="true"/>Receitas realizadas</dt><dd className="money-positive">{money(data.monthly.receitas)}</dd></div><div><dt><ArrowUpRight aria-hidden="true"/>Despesas + cartão</dt><dd>{money(data.monthly.despesas)}</dd></div></dl><p className="daily-hint">Todas as contas. Cartão entra pela parcela no mês da fatura; pagar a fatura não gera outra despesa. Este resumo não é o fluxo de caixa da projeção.</p></section>
+    </TabsContent><TabsContent value="planning" className="content-stack">
+    {data.hasPlus?<section id="projecao" className="glass-panel home-projection" aria-labelledby="projection-title"><div className="home-heading"><h2 id="projection-title">Quanto pode sobrar no fim do mês?</h2><span className="home-badge">Estimativa</span></div><p className={'home-projection-value '+(p.available<0?'money-negative':'text-primary')}>{ready?money(p.available):'—'}</p><p className="daily-hint">{syncing?'Atualizando previsões…':!hasIncluded?'Inclua uma conta para calcular a estimativa.':'Baseada apenas nos registros atuais. Não é garantia de dinheiro disponível para gastar.'}</p>
+     <details className="home-explainer"><summary>Entenda o cálculo<ChevronRight aria-hidden="true"/></summary><dl className="home-equation"><div><dt>Saldo atual incluído</dt><dd>{money(p.cash)}</dd></div><div><dt>+ Entradas ainda previstas</dt><dd>{money(p.income)}</dd></div><div><dt>− Contas pendentes</dt><dd>{money(p.expenses)}</dd></div><div><dt>− Faturas ainda não pagas</dt><dd>{money(p.invoices)}</dd></div><div><dt>− Reservas nas contas incluídas</dt><dd>{money(p.reserved)}</dd></div></dl></details>
+     {data.recurrenceGapMonth&&<div className="home-warning"><p>Faltam ocorrências antigas de uma recorrência. Complete esse período para calcular a projeção.</p><Link className="subtle-link" href={'/recorrencias?month='+data.recurrenceGapMonth.slice(0,7)}>Revisar desde {formatDate(data.recurrenceGapMonth)}</Link></div>}
+     <Button variant="outline" size="sm" onClick={()=>setDetails(true)}>Ver registros do cálculo</Button>
+     {ready&&<p className="home-scenario">Sem receber as entradas previstas: <strong className={p.withoutIncome<0?'money-negative':''}>{money(p.withoutIncome)}</strong></p>}
+     <details className="home-explainer"><summary>O que entra na estimativa<ChevronRight aria-hidden="true"/></summary><p className="daily-hint">Inclui obrigações vencidas e até {formatDate(data.monthEnd)}. Faturas entram uma vez, pelo saldo pendente, considerando pagamento com as contas incluídas. Contas excluídas e suas reservas não são descontadas de novo.</p>
+     <p className="daily-hint">Gastos variáveis não registrados, juros não informados e aportes ainda não feitos não entram na estimativa. Confira se suas receitas, contas e faturas estão completas.</p></details>
+     {p.overdueIncomeCount>0&&<p className="home-warning">Há recebimentos previstos com data passada. Eles ainda entram na estimativa; revise se e quando serão recebidos.</p>}
+     {p.excludedItemCount>0&&<p className="home-warning">Existem previsões em contas excluídas. Elas aparecem nos detalhes, mas não alteram esta projeção.</p>}
+     {p.underfundedAccounts>0&&<p className="home-warning">Há reserva maior que o saldo da conta. Revise suas reservas em Metas.</p>}
+     {ready&&p.firstShortfallDate&&<div className="home-warning"><strong>Pode faltar saldo em {formatDate(p.firstShortfallDate)}.</strong><p>Menor saldo estimado antes das entradas do dia: {money(p.lowestBalance)}. Para ser prudente, consideramos pagamentos antes de recebimentos no mesmo dia.</p></div>}
+     {ready&&<p className="daily-hint">{p.nextIncomeDate?`Até a próxima entrada, em ${formatDate(p.nextIncomeDate)}, saldo após reservas e obrigações: `:'Sem próxima entrada registrada neste mês, saldo após reservas e obrigações: '}{money(p.beforeNextIncome)}.</p>}
+    </section>:<section id="projecao" className="glass-panel p-5 space-y-3"><h2 className="font-semibold">Planeje além do saldo com o Plus</h2><p className="daily-hint">Projeção explicada até o fim do mês, cenário sem entradas previstas e aviso de falta de saldo antes dos recebimentos.</p><Button asChild variant="outline"><Link href="/assinatura">Conhecer os recursos do Plus</Link></Button></section>}
+    <section className="glass-panel p-5" aria-labelledby="budget-title"><div className="home-heading"><h2 id="budget-title">Orçamento do mês</h2><Link className="subtle-link" href="/limites">{data.budgetCount?'Ver todos':'Definir orçamento'}</Link></div>{data.budgets.length?<ul className="home-list">{data.budgets.map(b=><li key={b.id}><Link href="/limites" className="home-budget"><div><strong>{b.categoria}</strong><span>{visible?`${b.percentual}% utilizado`:'Valores ocultos'}</span></div><p>{money(b.gasto)} de {money(b.valor)} · Restante <span className={b.restante<0?'money-negative':''}>{money(b.restante)}</span></p>{visible&&<Meter value={b.percentual} label={b.categoria}/>}</Link></li>)}</ul>:<p className="daily-hint">Escolha um limite por categoria para acompanhar o gasto real.</p>}{data.budgetCount>5&&<p className="daily-hint">Mostrando os 5 orçamentos com maior utilização.</p>}</section>
+    <section className="glass-panel p-5 space-y-3" aria-labelledby="goal-title"><div className="home-heading"><h2 id="goal-title">Sua meta prioritária</h2><Target aria-hidden="true"/></div>{data.priorityGoal?<><label className="sr-only" htmlFor="priority-goal">Escolher meta prioritária</label><select id="priority-goal" className="w-full rounded-xl border bg-glass-deep p-3 text-sm" value={data.priorityGoal.id} disabled={savingPreference} onChange={e=>preference({meta_prioritaria_id:e.target.value})}>{data.goals.map(g=><option value={g.id} key={g.id}>{g.titulo}</option>)}</select><p className="text-xl font-semibold">{money(data.priorityGoal.reservado)} <span className="text-sm text-muted-foreground">de {money(data.priorityGoal.valor_alvo)}</span></p>{visible&&<Meter label={data.priorityGoal.titulo} value={data.priorityGoal.reservado/data.priorityGoal.valor_alvo*100}/>}<p className="daily-hint">{data.priorityGoal.prazo?`Prazo ${formatDate(data.priorityGoal.prazo)}${data.hasPlus?` · Estimativa de aporte mensal ${money(data.priorityGoal.mensal_necessario||0)}`:''}`:'Sem prazo. Você escolhe quando e quanto reservar.'}</p><Link href="/metas" className="subtle-link">Acompanhar e registrar aporte<ArrowRight/></Link></>:<><p className="daily-hint">Crie um objetivo e acompanhe o dinheiro realmente reservado.</p><Button asChild variant="outline"><Link href="/metas">Criar meta</Link></Button></>}</section>
+    </TabsContent></Tabs><footer className="home-footer"><Link href="/notificacoes" className="subtle-link">{data.unreadAlerts?`${data.unreadAlerts} aviso(s) não lido(s)`:'Consultar avisos'}</Link>{data.preferences.introducao_oculta&&<Button variant="ghost" size="sm" disabled={savingPreference} onClick={()=>preference({introducao_oculta:false})}>Retomar primeiros passos</Button>}</footer>
+   </>}
+  </div>
+  {quick&&data&&<QuickEntry key={quick} mode={quick} data={data} onClose={()=>setQuick(null)} onSaved={()=>{setQuick(null);setMessage(quick==='account'?'Conta cadastrada. Agora registre seu primeiro lançamento.':'Lançamento salvo. Seu resumo será atualizado.');reload();}}/>}
+  {details&&<CalculationDetails visible={visible} onClose={()=>setDetails(false)}/>}
+  <Dialog open={tool!==null} onOpenChange={open=>{if(!open)setTool(null);}}><DialogContent className="home-calculation home-tool-dialog"><DialogHeader><DialogTitle>{tool==='simulator'?'Simule antes de gastar':'Seu radar de pagamentos'}</DialogTitle><DialogDescription>{tool==='simulator'?'Explore o impacto no saldo, sem alterar seus registros.':'Filtre a prévia de vencimentos e abra um registro para conferir.'}</DialogDescription></DialogHeader>{data&&p&&(tool==='simulator'?<SpendingPreview cash={p.cash} hasAccount={hasIncluded} visible={visible}/>:tool==='radar'?<section  className="glass-panel p-5" aria-label="Prévia de compromissos"><div className="home-heading"><h2 >Radar de compromissos</h2><CalendarDays aria-hidden="true"/></div><div className="flex flex-wrap gap-2 mt-4" role="group" aria-label="Filtrar compromissos">{([{id:'all',label:'Próximos'},{id:'overdue',label:'Vencidos'},{id:'week',label:'Em 7 dias'}] as const).map(filter=><Button key={filter.id} size="sm" variant={dueFilter===filter.id?'default':'outline'} aria-pressed={dueFilter===filter.id} onClick={()=>setDueFilter(filter.id)}>{filter.label}</Button>)}</div><p className="daily-hint">Prévia dos 6 primeiros compromissos até o fim do mês.</p>{dueItems.length?<ul className="home-list">{dueItems.map(item=><ItemRow key={item.id} item={item} today={data.today} money={money}/>)}</ul>:<p className="daily-hint">Nenhum compromisso nesta prévia para o filtro escolhido. Consulte todos os registros para ver o restante.</p>}<Button variant="ghost" size="sm" onClick={()=>{setTool(null);setDetails(true);}}>Consultar todos os registros<ArrowRight/></Button></section>:null)}</DialogContent></Dialog>
+  <BottomNav/>
+ </main>;
 }
+function CalculationDetails({visible,onClose}:{visible:boolean;onClose:()=>void}){
+ const returnFocus=useRef<HTMLElement|null>(typeof document!=='undefined'?document.activeElement as HTMLElement:null);
+ const [page,setPage]=useState(0);const r=useResource<Overview>(`/api/overview?page=${page}`);const money=(n:number)=>visible?formatMoney(n):'••••••';
+ return <Dialog open onOpenChange={v=>{if(!v)onClose();}}><DialogContent className="home-calculation" onCloseAutoFocus={e=>{e.preventDefault();returnFocus.current?.focus();}}><DialogHeader><DialogTitle>De onde vêm os números</DialogTitle><DialogDescription>Contas, reservas e previsões até o fim do mês. Valores excluídos ficam identificados e não entram na projeção.</DialogDescription></DialogHeader><ResourceState {...r} retry={r.reload}/>{r.data&&<div className="space-y-5"><section><h3 className="font-semibold">Saldo e reservas por conta</h3>{r.data.accounts.length?<ul className="home-list">{r.data.accounts.map(a=><li key={a.id}><Link href="/contas" className="block py-2"><strong className="break-words">{a.nome}</strong><p className="daily-hint">Saldo {money(a.saldo_atual)} · Reserva {money(a.reservado)} · {a.incluir_no_disponivel?'Incluída':'Excluída'}</p></Link></li>)}</ul>:<p className="daily-hint">Nenhuma conta cadastrada.</p>}<Link href="/metas" className="subtle-link">Conferir reservas por meta</Link></section><section><h3 className="font-semibold">Entradas e obrigações pendentes</h3>{r.data.items.length?<ul className="home-list">{r.data.items.map(i=><ItemRow key={i.id} item={i} today={r.data!.today} money={money}/>)}</ul>:<p className="daily-hint">Nenhum registro neste período.</p>}{r.data.itemCount>50&&<div className="daily-pagination"><Button variant="outline" disabled={page===0} onClick={()=>setPage(p=>p-1)}>Anterior</Button><span>{page+1} / {Math.ceil(r.data.itemCount/50)}</span><Button variant="outline" disabled={(page+1)*50>=r.data.itemCount} onClick={()=>setPage(p=>p+1)}>Próxima</Button></div>}</section></div>}</DialogContent></Dialog>;
+}
+function ItemRow({item,today,money}:{item:ProjectionItem;today:string;money:(n:number)=>string}){
+ return <li><Link href={item.destino+'?month='+item.competencia.slice(0,7)} className="home-item"><div><strong>{item.descricao}</strong><small>{formatDate(item.vencimento)} · {item.origem} · {item.tipo==='income'?'Entrada prevista':item.vencimento<today?'Vencido':'Pendente'}{!item.incluido?' · Fora da projeção':''}</small></div><span className={item.tipo==='income'?'money-positive':''}>{item.tipo==='income'?'+ ':''}{money(item.valor)}<ArrowRight aria-hidden="true"/></span></Link></li>;
+}
+function Meter({value,label}:{value:number;label:string}){return <div className="gold-progress" role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.min(100,Math.round(value))} aria-valuetext={`${Math.round(value)}%`}><span style={{width:`${Math.min(100,Math.max(0,value))}%`}}/></div>;}

@@ -1,2 +1,13 @@
 node_modules/
 .env
+.env.*
+!.env.example
+.next/
+.pnpm-store/
+*.tsbuildinfo
+supabase/.temp/
+
+.local-tools/
+.codex-remote-attachments/
+.vercel/
+*.log
