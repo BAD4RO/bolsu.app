@@ -1,0 +1,8 @@
+allowBuilds:
+  esbuild: true
+  sharp: true
+  unrs-resolver: true
+overrides:
+  # Next's transitive ranges must not retain the vulnerable bundled tools.
+  sharp: 0.35.4
+  postcss: 8.5.28

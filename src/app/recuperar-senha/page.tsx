@@ -21,7 +21,7 @@ export default function RecuperarSenhaPage() {
 
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/redefinir-senha`,
+        redirectTo: `${window.location.origin}/auth/callback?next=/redefinir-senha`,
       });
 
       if (error) throw error;
@@ -36,18 +36,18 @@ export default function RecuperarSenhaPage() {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-[#0f0f16] flex items-center justify-center p-6">
+      <div className="app-shell min-h-screen flex items-center justify-center p-6">
         <div className="w-full max-w-md">
           {/* Logo/Header */}
           <div className="text-center mb-8">
-            <div className="w-20 h-20 bg-gradient-to-r from-[#ffa506] to-[#ff8800] rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <div className="w-20 h-20 bg-gradient-to-r from-[#ffca08] to-[#ffb817] rounded-2xl flex items-center justify-center mx-auto mb-4">
               <span className="text-4xl">💰</span>
             </div>
             <h1 className="text-3xl font-bold mb-2">BOLSU</h1>
           </div>
 
           {/* Success Card */}
-          <div className="bg-gradient-to-b from-[#252531] to-[#16161f] rounded-2xl p-8 border border-[#262633] text-center">
+          <div className="glass-panel rounded-2xl p-8 border border-white/10 text-center">
             <div className="w-16 h-16 bg-[#10b981]/10 rounded-full flex items-center justify-center mx-auto mb-4">
               <CheckCircle2 className="w-8 h-8 text-[#10b981]" />
             </div>
@@ -58,14 +58,14 @@ export default function RecuperarSenhaPage() {
               Verifique sua caixa de entrada e siga as instruções para redefinir sua senha.
             </p>
 
-            <div className="bg-[#262633] rounded-xl p-4 mb-6">
+            <div className="bg-glass-inset rounded-xl p-4 mb-6">
               <p className="text-sm text-[#9ca3af]">
                 <strong className="text-white">Dica:</strong> Se não encontrar o email, verifique sua pasta de spam ou lixo eletrônico.
               </p>
             </div>
 
             <Link href="/login">
-              <Button className="w-full bg-gradient-to-r from-[#ffa506] to-[#ff8800] hover:from-[#ff8800] hover:to-[#ffa506] h-12 rounded-xl text-white font-semibold">
+              <Button className="w-full bg-gradient-to-r from-[#ffca08] to-[#ffb817] hover:from-[#ffb817] hover:to-[#ffca08] h-12 rounded-xl text-white font-semibold">
                 <ArrowLeft className="w-5 h-5 mr-2" />
                 Voltar para Login
               </Button>
@@ -77,11 +77,11 @@ export default function RecuperarSenhaPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0f0f16] flex items-center justify-center p-6">
+    <div className="app-shell min-h-screen flex items-center justify-center p-6">
       <div className="w-full max-w-md">
         {/* Logo/Header */}
         <div className="text-center mb-8">
-          <div className="w-20 h-20 bg-gradient-to-r from-[#ffa506] to-[#ff8800] rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <div className="w-20 h-20 bg-gradient-to-r from-[#ffca08] to-[#ffb817] rounded-2xl flex items-center justify-center mx-auto mb-4">
             <span className="text-4xl">💰</span>
           </div>
           <h1 className="text-3xl font-bold mb-2">BOLSU</h1>
@@ -89,7 +89,7 @@ export default function RecuperarSenhaPage() {
         </div>
 
         {/* Form */}
-        <div className="bg-gradient-to-b from-[#252531] to-[#16161f] rounded-2xl p-6 border border-[#262633]">
+        <div className="glass-panel rounded-2xl p-6 border border-white/10">
           <div className="mb-6">
             <h2 className="text-xl font-bold mb-2">Esqueceu sua senha?</h2>
             <p className="text-sm text-[#9ca3af]">
@@ -108,7 +108,7 @@ export default function RecuperarSenhaPage() {
                   placeholder="seu@email.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="bg-[#262633] border-[#262633] h-12 pl-11 rounded-xl text-white placeholder:text-gray-500"
+                  className="bg-glass-inset border-white/10 h-12 pl-11 rounded-xl text-white placeholder:text-gray-500"
                   required
                 />
               </div>
@@ -125,7 +125,7 @@ export default function RecuperarSenhaPage() {
             <Button
               type="submit"
               disabled={loading}
-              className="w-full bg-gradient-to-r from-[#ffa506] to-[#ff8800] hover:from-[#ff8800] hover:to-[#ffa506] h-12 rounded-xl text-white font-semibold"
+              className="w-full bg-gradient-to-r from-[#ffca08] to-[#ffb817] hover:from-[#ffb817] hover:to-[#ffca08] h-12 rounded-xl text-white font-semibold"
             >
               {loading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />

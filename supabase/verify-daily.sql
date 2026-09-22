@@ -1,0 +1,36 @@
+-- Teste real do núcleo, em transação revertida. Não deixa usuários ou dados financeiros.
+begin;
+insert into auth.users(id,raw_user_meta_data) values ('f477f9f7-f0f8-4dde-9059-d60aeb7316a1','{"nome":"Homologação A"}'),('f477f9f7-f0f8-4dde-9059-d60aeb7316a2','{"nome":"Homologação B"}');
+set local role authenticated;
+set local request.jwt.claim.sub='f477f9f7-f0f8-4dde-9059-d60aeb7316a1';
+do $$ declare a uuid;b uuid;cat uuid;c uuid;t uuid;f uuid;p uuid;req uuid:=gen_random_uuid();payload jsonb;s jsonb;r jsonb;begin
+ a:=(public.bolsu_daily('account.save','{"nome":"Conta A","tipo":"corrente","saldo_inicial":"1000","data_saldo_inicial":"2026-01-01","incluir_no_disponivel":true}',gen_random_uuid())->>'id')::uuid;
+ b:=(public.bolsu_daily('account.save','{"nome":"Conta B","tipo":"carteira","saldo_inicial":"0","data_saldo_inicial":"2026-01-01","incluir_no_disponivel":true}',gen_random_uuid())->>'id')::uuid;
+ select id into cat from public.categorias where tipo='despesa' limit 1;
+ payload:=jsonb_build_object('descricao','Despesa teste','tipo','despesa','valor','20','categoria_id',cat,'conta_id',a,'data_competencia','2026-01-02','data_vencimento','2026-01-02','data_realizacao','2026-01-02','status','realizado');
+ r:=public.bolsu_daily('transaction.save',payload,req);t:=(r->>'id')::uuid;
+ if public.bolsu_daily('transaction.save',payload,req)<>r then raise exception 'Falha idempotência';end if;
+ if (select saldo_atual from public.saldos_contas where id=a)<>980 then raise exception 'Falha despesa ou duplicação';end if;
+ perform public.bolsu_daily('transfer.save',jsonb_build_object('conta_origem_id',a,'conta_destino_id',b,'valor','100','data','2026-01-03'),gen_random_uuid());
+ c:=(public.bolsu_daily('card.save','{"nome":"Cartão teste","limite":"2000","dia_fechamento":10,"dia_vencimento":20,"bandeira":"Visa"}',gen_random_uuid())->>'id')::uuid;
+ perform public.bolsu_daily('purchase.save',jsonb_build_object('cartao_id',c,'descricao','Compra teste','valor','100','categoria_id',cat,'data_compra','2026-01-02','parcelas',3),gen_random_uuid());
+ if (select sum(valor) from public.transacoes where cartao_id=c and not excluida)<>100 then raise exception 'Falha parcelas';end if;
+ select id into f from public.faturas where cartao_id=c and competencia='2026-01-01';
+ p:=(public.bolsu_daily('payment.save',jsonb_build_object('conta_id',a,'fatura_id',f,'valor','10','data','2026-01-20'),gen_random_uuid())->>'id')::uuid;
+ if (select saldo_atual from public.saldos_contas where id=a)<>870 then raise exception 'Falha caixa';end if;
+ if (select saldo_atual from public.saldos_contas where id=b)<>100 then raise exception 'Falha transferência';end if;
+ if (select pendente from public.resumos_faturas where id=f)<>23.34 then raise exception 'Falha parcial';end if;
+ if (select utilizado from public.resumos_cartoes where id=c)<>90 then raise exception 'Falha limite';end if;
+ begin perform public.bolsu_daily('payment.save',jsonb_build_object('conta_id',a,'fatura_id',f,'valor','24','data','2026-01-20'),gen_random_uuid());raise exception 'Pagamento excessivo aceito';exception when invalid_parameter_value then null;end;
+ s:=public.bolsu_daily_snapshot('2026-01-01');
+ if (s->'totals'->>'expenses')::numeric<>53.34 or (s->'totals'->>'income')::numeric<>0 then raise exception 'Falha dupla contagem';end if;
+ perform public.bolsu_daily('transaction.delete',jsonb_build_object('id',t),gen_random_uuid());
+ if (select saldo_atual from public.saldos_contas where id=a)<>890 then raise exception 'Falha exclusão';end if;
+ perform public.bolsu_daily('payment.delete',jsonb_build_object('id',p),gen_random_uuid());
+ if (select saldo_atual from public.saldos_contas where id=a)<>900 then raise exception 'Falha correção de pagamento';end if;
+end $$;
+set local request.jwt.claim.sub='f477f9f7-f0f8-4dde-9059-d60aeb7316a2';
+do $$ declare s jsonb;begin s:=public.bolsu_daily_snapshot('2026-01-01');if jsonb_array_length(s->'accounts')<>0 or jsonb_array_length(s->'transactions')<>0 or jsonb_array_length(s->'cards')<>0 or jsonb_array_length(s->'payments')<>0 then raise exception 'Falha isolamento';end if;end $$;
+reset role;
+rollback;
+select 'OK: contas, lançamentos, exclusão, transferências, parcelas, faturas, pagamentos parciais, limite, idempotência e isolamento. Testes revertidos.' resultado;

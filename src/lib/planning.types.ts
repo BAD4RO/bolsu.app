@@ -1,0 +1,10 @@
+import type {AccountBalance,Category,Recurrence,Transaction,Budget,Goal,GoalEntry} from './database.types';
+export type PlanningSnapshot={hasPlus:boolean;
+ accounts:(AccountBalance&{reservado:number})[];categories:Category[];recurrences:Recurrence[];
+ versions:{recorrencia_id:string;desde:string;descricao:string;tipo:'receita'|'despesa';valor:number;conta_id:string;categoria_id:string;dia:number}[];
+ occurrences:(Transaction&{personalizada:boolean})[];occurrenceCount:number;
+ budgets:(Budget&{categoria:string;gasto:number;previsto:number;restante:number;percentual:number})[];
+ goals:(Goal&{reservado:number;mensal_necessario:number|null})[];
+ reserves:{meta_id:string;conta_id:string;reservado:number}[];entries:GoalEntry[];entryCount:number;
+ alerts:{chave:string;titulo:string;detalhe:string;valor:number;data:string;destino:string;lido:boolean}[];alertCount:number;
+};

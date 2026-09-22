@@ -1,0 +1,20 @@
+import type {DailySnapshot} from '@/lib/daily.types';
+import type {DailyOperation} from '@/lib/domain/daily';
+export type FormValues=Record<string,string|number|boolean|null>;
+export type Field={key:string;label:string;kind?:'date'|'number'|'money'|'checkbox'|'textarea';options?:{value:string;label:string}[];optional?:boolean;max?:number;min?:number};
+export const operationTitles:Record<DailyOperation,string>={'account.save':'Conta manual','adjustment.save':'Ajustar saldo','adjustment.delete':'Excluir ajuste','transaction.save':'Lançamento manual','transaction.delete':'Excluir lançamento','transfer.save':'Transferência entre contas','transfer.delete':'Excluir transferência','card.save':'Cartão de crédito','purchase.save':'Compra no cartão','purchase.delete':'Excluir compra inteira','payment.save':'Registrar pagamento da fatura','payment.delete':'Excluir registro de pagamento'};
+export function formFields(operation:DailyOperation,values:FormValues,data:DailySnapshot):Field[]{
+ const accounts=data.accounts.filter(a=>!a.arquivada||a.id===values.conta_id).map(a=>({value:a.id,label:a.nome+(a.arquivada?' (arquivada)':'')}));
+ const field=(key:string,label:string,options=accounts):Field=>({key,label,options});
+ const category=field('categoria_id','Categoria',data.categories.filter(c=>!c.arquivada&&c.tipo===(operation==='purchase.save'?'despesa':values.tipo)).map(c=>({value:c.id,label:c.nome})));
+ const money:Field={key:'valor',label:'Valor (R$)',kind:'money'};
+ const date:Field={key:'data',label:'Data',kind:'date'};
+ if(operation==='account.save')return[{key:'nome',label:'Nome',max:80},field('tipo','Tipo',[{value:'corrente',label:'Conta corrente'},{value:'poupanca',label:'Poupança'},{value:'carteira',label:'Dinheiro em espécie'},{value:'investimento',label:'Investimento'}]),...(!values.id?[{key:'saldo_inicial',label:'Saldo no início do dia (R$)',kind:'money' as const},{key:'data_saldo_inicial',label:'Data do saldo inicial',kind:'date' as const}]:[]),{key:'incluir_no_disponivel',label:'Incluir no saldo disponível',kind:'checkbox'},...(values.id?[{key:'arquivada',label:'Arquivada',kind:'checkbox' as const}]:[])];
+ if(operation==='transaction.save')return[field('tipo','Tipo',[{value:'despesa',label:'Despesa'},{value:'receita',label:'Receita'}]),{key:'descricao',label:'Descrição',max:160},money,field('conta_id','Conta'),category,{key:'data_competencia',label:'Data de competência',kind:'date'},{key:'data_vencimento',label:'Data de vencimento',kind:'date'},field('status','Situação',[{value:'previsto',label:'Previsto / pendente'},{value:'realizado',label:'Pago / recebido'}]),...(values.status==='realizado'?[{key:'data_realizacao',label:'Data de pagamento ou recebimento',kind:'date' as const}]:[]),{key:'observacoes',label:'Observações',kind:'textarea',optional:true,max:2000}];
+ if(operation==='transfer.save')return[field('conta_origem_id','Conta de origem'),field('conta_destino_id','Conta de destino'),money,date];
+ if(operation==='card.save')return[{key:'nome',label:'Nome do cartão',max:80},field('bandeira','Bandeira',['Mastercard','Visa','Elo','Outra'].map(x=>({value:x,label:x}))),{key:'limite',label:'Limite total (R$)',kind:'money'},{key:'dia_fechamento',label:'Dia do fechamento',kind:'number',min:1,max:31},{key:'dia_vencimento',label:'Dia do vencimento',kind:'number',min:1,max:31},...(values.id?[{key:'arquivado',label:'Arquivado (impede novas compras)',kind:'checkbox' as const}]:[])];
+ if(operation==='purchase.save')return[field('cartao_id','Cartão',data.cards.filter(c=>!c.arquivado).map(c=>({value:c.id,label:c.nome}))),{key:'descricao',label:'Descrição da compra',max:160},money,category,{key:'data_compra',label:'Data da compra',kind:'date'},{key:'parcelas',label:'Número de parcelas',kind:'number',min:1,max:360}];
+ if(operation==='payment.save')return[field('conta_id','Pagar com qual conta?'),money,date];
+ if(operation==='adjustment.save')return[field('conta_id','Conta'),money,date,{key:'motivo',label:'Motivo do ajuste',max:160}];
+ return [];
+}

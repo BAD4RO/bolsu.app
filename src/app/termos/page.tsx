@@ -8,15 +8,15 @@ export default function TermosPage() {
   const router = useRouter();
 
   return (
-    <div className="min-h-screen bg-[#0f0f16] pb-8">
+    <div className="app-shell min-h-screen pb-8">
       {/* Header */}
-      <div className="bg-gradient-to-b from-[#252531] to-[#16161f] p-6 rounded-b-3xl shadow-xl">
+      <div className="glass-panel p-6 rounded-b-3xl shadow-xl">
         <div className="flex items-center space-x-4 mb-6">
           <Button
             variant="ghost"
             size="icon"
             onClick={() => router.back()}
-            className="text-white hover:bg-[#262633] rounded-full"
+            className="text-white hover:bg-[#222327] rounded-full"
           >
             <ArrowLeft className="w-5 h-5" />
           </Button>
@@ -30,10 +30,10 @@ export default function TermosPage() {
 
       <div className="p-6 space-y-6">
         {/* Introdução */}
-        <div className="bg-gradient-to-b from-[#252531] to-[#16161f] rounded-2xl p-6 border border-[#262633]">
+        <div className="glass-panel rounded-2xl p-6 border border-white/10">
           <div className="flex items-center space-x-3 mb-4">
-            <div className="w-10 h-10 bg-[#ffa506]/20 rounded-xl flex items-center justify-center">
-              <FileText className="w-5 h-5 text-[#ffa506]" />
+            <div className="w-10 h-10 bg-[#ffca08]/20 rounded-xl flex items-center justify-center">
+              <FileText className="w-5 h-5 text-[#ffca08]" />
             </div>
             <h2 className="text-xl font-semibold">Bem-vindo ao BOLSU</h2>
           </div>
@@ -45,7 +45,7 @@ export default function TermosPage() {
         </div>
 
         {/* 1. Aceitação dos Termos */}
-        <div className="bg-gradient-to-b from-[#252531] to-[#16161f] rounded-2xl p-6 border border-[#262633]">
+        <div className="glass-panel rounded-2xl p-6 border border-white/10">
           <h3 className="text-lg font-semibold mb-3">1. Aceitação dos Termos</h3>
           <p className="text-sm text-[#9ca3af] leading-relaxed mb-3">
             Ao criar uma conta e utilizar o BOLSU, você declara que leu,
@@ -59,7 +59,7 @@ export default function TermosPage() {
         </div>
 
         {/* 2. Uso do Serviço */}
-        <div className="bg-gradient-to-b from-[#252531] to-[#16161f] rounded-2xl p-6 border border-[#262633]">
+        <div className="glass-panel rounded-2xl p-6 border border-white/10">
           <h3 className="text-lg font-semibold mb-3">2. Uso do Serviço</h3>
           <p className="text-sm text-[#9ca3af] leading-relaxed mb-3">
             O BOLSU é uma ferramenta de gestão financeira pessoal que permite
@@ -74,7 +74,7 @@ export default function TermosPage() {
         </div>
 
         {/* 3. Propriedade Intelectual */}
-        <div className="bg-gradient-to-b from-[#252531] to-[#16161f] rounded-2xl p-6 border border-[#262633]">
+        <div className="glass-panel rounded-2xl p-6 border border-white/10">
           <h3 className="text-lg font-semibold mb-3">
             3. Propriedade Intelectual
           </h3>
@@ -90,7 +90,7 @@ export default function TermosPage() {
         </div>
 
         {/* 4. Privacidade e Dados */}
-        <div className="bg-gradient-to-b from-[#252531] to-[#16161f] rounded-2xl p-6 border border-[#262633]">
+        <div className="glass-panel rounded-2xl p-6 border border-white/10">
           <h3 className="text-lg font-semibold mb-3">4. Privacidade e Dados</h3>
           <p className="text-sm text-[#9ca3af] leading-relaxed mb-3">
             Seus dados financeiros são tratados com máxima segurança e
@@ -106,7 +106,7 @@ export default function TermosPage() {
         </div>
 
         {/* 5. Planos e Pagamentos */}
-        <div className="bg-gradient-to-b from-[#252531] to-[#16161f] rounded-2xl p-6 border border-[#262633]">
+        <div className="glass-panel rounded-2xl p-6 border border-white/10">
           <h3 className="text-lg font-semibold mb-3">5. Planos e Pagamentos</h3>
           <p className="text-sm text-[#9ca3af] leading-relaxed mb-3">
             O BOLSU oferece planos Free e Premium. O plano Premium é uma
@@ -121,7 +121,7 @@ export default function TermosPage() {
         </div>
 
         {/* 6. Limitação de Responsabilidade */}
-        <div className="bg-gradient-to-b from-[#252531] to-[#16161f] rounded-2xl p-6 border border-[#262633]">
+        <div className="glass-panel rounded-2xl p-6 border border-white/10">
           <h3 className="text-lg font-semibold mb-3">
             6. Limitação de Responsabilidade
           </h3>
@@ -138,7 +138,7 @@ export default function TermosPage() {
         </div>
 
         {/* 7. Modificações nos Termos */}
-        <div className="bg-gradient-to-b from-[#252531] to-[#16161f] rounded-2xl p-6 border border-[#262633]">
+        <div className="glass-panel rounded-2xl p-6 border border-white/10">
           <h3 className="text-lg font-semibold mb-3">
             7. Modificações nos Termos
           </h3>
@@ -151,7 +151,7 @@ export default function TermosPage() {
         </div>
 
         {/* 8. Rescisão */}
-        <div className="bg-gradient-to-b from-[#252531] to-[#16161f] rounded-2xl p-6 border border-[#262633]">
+        <div className="glass-panel rounded-2xl p-6 border border-white/10">
           <h3 className="text-lg font-semibold mb-3">8. Rescisão</h3>
           <p className="text-sm text-[#9ca3af] leading-relaxed mb-3">
             Podemos suspender ou encerrar sua conta a qualquer momento, sem
@@ -164,7 +164,7 @@ export default function TermosPage() {
         </div>
 
         {/* 9. Lei Aplicável */}
-        <div className="bg-gradient-to-b from-[#252531] to-[#16161f] rounded-2xl p-6 border border-[#262633]">
+        <div className="glass-panel rounded-2xl p-6 border border-white/10">
           <h3 className="text-lg font-semibold mb-3">9. Lei Aplicável</h3>
           <p className="text-sm text-[#9ca3af] leading-relaxed">
             Estes Termos de Uso são regidos pelas leis da República Federativa
@@ -174,7 +174,7 @@ export default function TermosPage() {
         </div>
 
         {/* 10. Contato */}
-        <div className="bg-gradient-to-b from-[#252531] to-[#16161f] rounded-2xl p-6 border border-[#262633]">
+        <div className="glass-panel rounded-2xl p-6 border border-white/10">
           <h3 className="text-lg font-semibold mb-3">10. Contato</h3>
           <p className="text-sm text-[#9ca3af] leading-relaxed mb-3">
             Se você tiver dúvidas sobre estes Termos de Uso, entre em contato
@@ -189,7 +189,7 @@ export default function TermosPage() {
         {/* Botão Aceitar */}
         <Button
           onClick={() => router.back()}
-          className="w-full bg-gradient-to-r from-[#ffa506] to-[#ff8800] hover:from-[#ff8800] hover:to-[#ffa506] h-12 rounded-xl"
+          className="w-full bg-gradient-to-r from-[#ffca08] to-[#ffb817] hover:from-[#ffb817] hover:to-[#ffca08] h-12 rounded-xl"
         >
           Li e Aceito os Termos
         </Button>

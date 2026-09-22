@@ -1,0 +1,11 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {dailySchemas,operationSchema} from '../src/lib/domain/daily';
+import {formFields} from '../src/components/finance/daily-forms';
+import type {DailySnapshot} from '../src/lib/daily.types';
+const id='00000000-0000-4000-8000-000000000001';
+const manual={descricao:'Mercado',tipo:'despesa',valor:'10,50',conta_id:id,categoria_id:id,data_competencia:'2026-01-01',data_vencimento:'2026-01-01',status:'previsto',data_realizacao:null};
+test('contrato financeiro não aceita proprietário, valor negativo nem realizado sem data',()=>{assert.ok(dailySchemas['transaction.save'].safeParse(manual).success);for(const bad of [{usuario_id:id},{valor:'-1'},{valor:'10.999'},{status:'realizado'},{data_realizacao:'2026-01-01'},{data_competencia:'2026-02-31'}])assert.equal(dailySchemas['transaction.save'].safeParse({...manual,...bad}).success,false);});
+test('parcelas têm precisão mínima e limites; transferência exige contas diferentes',()=>{const purchase={cartao_id:id,descricao:'Compra',valor:'0.01',categoria_id:id,data_compra:'2026-01-01',parcelas:2};assert.equal(dailySchemas['purchase.save'].safeParse(purchase).success,false);assert.ok(dailySchemas['purchase.save'].safeParse({...purchase,valor:'100',parcelas:3}).success);assert.equal(dailySchemas['transfer.save'].safeParse({conta_origem_id:id,conta_destino_id:id,valor:'1',data:'2026-01-01'}).success,false);});
+test('toda mutação exige chave de idempotência e rejeita operação desconhecida',()=>{assert.equal(operationSchema.safeParse({operation:'transaction.save',data:manual}).success,false);assert.equal(operationSchema.safeParse({operation:'plan.upgrade',requestId:id,data:{}}).success,false);assert.ok(operationSchema.safeParse({operation:'transaction.save',requestId:id,data:manual}).success);});
+test('edição de conta não oferece mudança silenciosa do saldo inicial',()=>{const data={accounts:[],categories:[],cards:[]} as unknown as DailySnapshot;const fields=formFields('account.save',{id,nome:'Conta'},data);assert.equal(fields.some(f=>f.key==='saldo_inicial'||f.key==='data_saldo_inicial'),false);assert.ok(formFields('account.save',{},data).some(f=>f.key==='saldo_inicial'));});

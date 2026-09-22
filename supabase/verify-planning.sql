@@ -1,0 +1,31 @@
+-- Transação revertida: não deixa identidades ou registros de teste.
+begin;
+insert into auth.users(id,raw_user_meta_data) values ('bbd09b73-6695-4803-8000-000000000001','{"nome":"Teste planejamento A"}'),('bbd09b73-6695-4803-8000-000000000002','{"nome":"Teste planejamento B"}');
+set local role authenticated;
+set local request.jwt.claim.sub='bbd09b73-6695-4803-8000-000000000001';
+do $$ declare a uuid;cat uuid;g uuid;r uuid;t uuid;s jsonb;key uuid:=gen_random_uuid();p jsonb;begin
+ a:=(public.bolsu_daily('account.save','{"nome":"Teste","tipo":"corrente","saldo_inicial":"1000","data_saldo_inicial":"2020-01-01","incluir_no_disponivel":true}',gen_random_uuid())->>'id')::uuid;
+ select id into cat from public.categorias where tipo='despesa' limit 1;
+ r:=(public.bolsu_planning('recurrence.save',jsonb_build_object('descricao','Mensal','tipo','despesa','valor','100','conta_id',a,'categoria_id',cat,'dia',31,'data_inicio','2024-01-01','data_fim',null),gen_random_uuid())->>'id')::uuid;
+ perform public.bolsu_planning('recurrence.generate','{"mes":"2024-01-01"}',gen_random_uuid());
+ if (select count(*) from public.transacoes where recorrencia_id=r)<>12 then raise exception 'Geração duplicada';end if;
+ if (select data_vencimento from public.transacoes where recorrencia_id=r and ocorrencia='2024-02-01')<>date '2024-02-29' then raise exception 'Fevereiro incorreto';end if;
+ select id into t from public.transacoes where recorrencia_id=r and ocorrencia='2024-02-01';
+ perform public.bolsu_planning('occurrence.save',jsonb_build_object('id',t,'descricao','Mensal','valor','100','data_vencimento','2024-02-29','status','realizado','data_realizacao','2024-02-29'),gen_random_uuid());
+ perform public.bolsu_planning('budget.save',jsonb_build_object('categoria_id',cat,'mes','2024-02-01','valor','200'),gen_random_uuid());
+ if (select gasto from public.resumos_orcamentos where mes='2024-02-01')<>100 then raise exception 'Orçamento incorreto';end if;
+ g:=(public.bolsu_planning('goal.save','{"titulo":"Meta","valor_alvo":"1000","prazo":null}',gen_random_uuid())->>'id')::uuid;
+ p:=jsonb_build_object('meta_id',g,'conta_id',a,'tipo','aporte','valor','200','data','2024-03-01');
+ perform public.bolsu_planning('goal.entry',p,key);perform public.bolsu_planning('goal.entry',p,key);
+ if (select reservado from public.resumos_metas where id=g)<>200 then raise exception 'Aporte duplicado';end if;
+ if (select saldo_atual from public.saldos_contas where id=a)<>900 then raise exception 'Reserva alterou caixa';end if;
+ begin perform public.bolsu_planning('goal.entry',p||'{"tipo":"retirada","valor":"201"}',gen_random_uuid());raise exception 'Retirada excessiva';exception when invalid_parameter_value then null;end;
+ s:=public.bolsu_planning_snapshot('2024-02-01',0);
+ if jsonb_array_length(s->'goals')<>1 then raise exception 'Snapshot inválido';end if;
+ perform set_config('request.jwt.claim.sub','bbd09b73-6695-4803-8000-000000000002',true);
+ if exists(select 1 from public.metas) or exists(select 1 from public.versoes_recorrencia) then raise exception 'Falha isolamento';end if;
+ begin perform public.bolsu_planning('goal.save',jsonb_build_object('id',g,'titulo','Invasão','valor_alvo','1','prazo',null),gen_random_uuid());raise exception 'Edição cruzada';exception when invalid_parameter_value then null;end;
+end $$;
+reset role;
+select 'Planejamento: geração, calendário, orçamento, reserva, idempotência e isolamento OK' as resultado;
+rollback;

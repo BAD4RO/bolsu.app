@@ -101,15 +101,15 @@ export default function AjudaPage() {
   const categorias = Array.from(new Set(faqs.map((faq) => faq.categoria)));
 
   return (
-    <div className="min-h-screen bg-[#0f0f16] pb-8">
+    <div className="app-shell min-h-screen pb-8">
       {/* Header */}
-      <div className="bg-gradient-to-b from-[#252531] to-[#16161f] p-6 rounded-b-3xl shadow-xl">
+      <div className="glass-panel p-6 rounded-b-3xl shadow-xl">
         <div className="flex items-center space-x-4 mb-6">
           <Button
             variant="ghost"
             size="icon"
             onClick={() => router.back()}
-            className="text-white hover:bg-[#262633] rounded-full"
+            className="text-white hover:bg-[#222327] rounded-full"
           >
             <ArrowLeft className="w-5 h-5" />
           </Button>
@@ -123,7 +123,7 @@ export default function AjudaPage() {
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
             placeholder="Buscar dúvidas..."
-            className="bg-[#262633] border-[#262633] h-12 rounded-xl pl-12"
+            className="bg-glass-inset border-white/10 h-12 rounded-xl pl-12"
           />
         </div>
       </div>
@@ -143,15 +143,15 @@ export default function AjudaPage() {
                 {faqsCategoria.map((faq) => (
                   <div
                     key={faq.id}
-                    className="bg-gradient-to-b from-[#252531] to-[#16161f] rounded-2xl border border-[#262633] overflow-hidden"
+                    className="glass-panel rounded-2xl border border-white/10 overflow-hidden"
                   >
                     <button
                       onClick={() => setExpandido(expandido === faq.id ? null : faq.id)}
-                      className="w-full flex items-center justify-between p-4 hover:bg-[#262633]/50 transition-colors"
+                      className="w-full flex items-center justify-between p-4 hover:bg-[#222327]/50 transition-colors"
                     >
                       <div className="flex items-center space-x-3 flex-1 text-left">
-                        <div className="w-10 h-10 bg-[#ffa506]/20 rounded-xl flex items-center justify-center flex-shrink-0">
-                          <HelpCircle className="w-5 h-5 text-[#ffa506]" />
+                        <div className="w-10 h-10 bg-[#ffca08]/20 rounded-xl flex items-center justify-center flex-shrink-0">
+                          <HelpCircle className="w-5 h-5 text-[#ffca08]" />
                         </div>
                         <span className="font-medium">{faq.pergunta}</span>
                       </div>
@@ -176,19 +176,19 @@ export default function AjudaPage() {
         })}
 
         {faqsFiltradas.length === 0 && (
-          <div className="bg-gradient-to-b from-[#252531] to-[#16161f] rounded-2xl p-12 border border-[#262633] text-center">
+          <div className="glass-panel rounded-2xl p-12 border border-white/10 text-center">
             <HelpCircle className="w-16 h-16 text-[#9ca3af] mx-auto mb-4" />
             <p className="text-[#9ca3af]">Nenhuma dúvida encontrada</p>
           </div>
         )}
 
         {/* Contato */}
-        <div className="bg-gradient-to-b from-[#252531] to-[#16161f] rounded-2xl p-6 border border-[#262633] text-center">
+        <div className="glass-panel rounded-2xl p-6 border border-white/10 text-center">
           <h3 className="text-lg font-semibold mb-2">Ainda tem dúvidas?</h3>
           <p className="text-sm text-[#9ca3af] mb-4">
             Entre em contato com nossa equipe de suporte
           </p>
-          <Button className="bg-gradient-to-r from-[#ffa506] to-[#ff8800] hover:from-[#ff8800] hover:to-[#ffa506] h-12 rounded-xl">
+          <Button className="bg-gradient-to-r from-[#ffca08] to-[#ffb817] hover:from-[#ffb817] hover:to-[#ffca08] h-12 rounded-xl">
             Falar com Suporte
           </Button>
         </div>

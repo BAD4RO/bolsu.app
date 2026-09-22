@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Lock, Loader2, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
+import { supabase } from '@/lib/supabase';
 
 export default function RedefinirSenhaPage() {
   const router = useRouter();
@@ -18,23 +18,24 @@ export default function RedefinirSenhaPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
 
+  const [sessionReady, setSessionReady] = useState(false);
   useEffect(() => {
-    // Verifica se há um token de recuperação na URL
-    const hashParams = new URLSearchParams(window.location.hash.substring(1));
-    const accessToken = hashParams.get('access_token');
-    
-    if (!accessToken) {
-      setError('Link de recuperação inválido ou expirado');
-    }
+    let active = true;
+    supabase.auth.getUser().then(({ data, error }) => {
+      if (!active) return;
+      if (error || !data.user) setError('Link inválido ou expirado. Solicite uma nova recuperação de senha.');
+      else setSessionReady(true);
+    }).catch(() => { if (active) setError('Não foi possível validar o acesso. Tente novamente.'); });
+    return () => { active = false; };
   }, []);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
+    if (!sessionReady) { setError('Solicite um novo link de recuperação.'); return; }
     // Validações
-    if (password.length < 6) {
-      setError('A senha deve ter no mínimo 6 caracteres');
+    if (password.length < 8) {
+      setError('A senha deve ter no mínimo 8 caracteres');
       return;
     }
 
@@ -46,13 +47,13 @@ export default function RedefinirSenhaPage() {
     setLoading(true);
 
     try {
-      const supabase = createClient();
       const { error } = await supabase.auth.updateUser({
         password: password,
       });
 
       if (error) throw error;
 
+      await supabase.auth.signOut();
       setSuccess(true);
       
       // Redireciona para login após 3 segundos
@@ -68,18 +69,18 @@ export default function RedefinirSenhaPage() {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-[#0f0f16] flex items-center justify-center p-6">
+      <div className="app-shell min-h-screen flex items-center justify-center p-6">
         <div className="w-full max-w-md">
           {/* Logo/Header */}
           <div className="text-center mb-8">
-            <div className="w-20 h-20 bg-gradient-to-r from-[#ffa506] to-[#ff8800] rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <div className="w-20 h-20 bg-gradient-to-r from-[#ffca08] to-[#ffb817] rounded-2xl flex items-center justify-center mx-auto mb-4">
               <span className="text-4xl">💰</span>
             </div>
             <h1 className="text-3xl font-bold mb-2">BOLSU</h1>
           </div>
 
           {/* Success Card */}
-          <div className="bg-gradient-to-b from-[#252531] to-[#16161f] rounded-2xl p-8 border border-[#262633] text-center">
+          <div className="glass-panel rounded-2xl p-8 border border-white/10 text-center">
             <div className="w-16 h-16 bg-[#10b981]/10 rounded-full flex items-center justify-center mx-auto mb-4">
               <CheckCircle2 className="w-8 h-8 text-[#10b981]" />
             </div>
@@ -90,7 +91,7 @@ export default function RedefinirSenhaPage() {
             </p>
 
             <div className="animate-pulse">
-              <Loader2 className="w-6 h-6 animate-spin mx-auto text-[#ffa506]" />
+              <Loader2 className="w-6 h-6 animate-spin mx-auto text-[#ffca08]" />
             </div>
           </div>
         </div>
@@ -99,11 +100,11 @@ export default function RedefinirSenhaPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0f0f16] flex items-center justify-center p-6">
+    <div className="app-shell min-h-screen flex items-center justify-center p-6">
       <div className="w-full max-w-md">
         {/* Logo/Header */}
         <div className="text-center mb-8">
-          <div className="w-20 h-20 bg-gradient-to-r from-[#ffa506] to-[#ff8800] rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <div className="w-20 h-20 bg-gradient-to-r from-[#ffca08] to-[#ffb817] rounded-2xl flex items-center justify-center mx-auto mb-4">
             <span className="text-4xl">💰</span>
           </div>
           <h1 className="text-3xl font-bold mb-2">BOLSU</h1>
@@ -111,7 +112,7 @@ export default function RedefinirSenhaPage() {
         </div>
 
         {/* Form */}
-        <div className="bg-gradient-to-b from-[#252531] to-[#16161f] rounded-2xl p-6 border border-[#262633]">
+        <div className="glass-panel rounded-2xl p-6 border border-white/10">
           <div className="mb-6">
             <h2 className="text-xl font-bold mb-2">Nova Senha</h2>
             <p className="text-sm text-[#9ca3af]">
@@ -130,7 +131,7 @@ export default function RedefinirSenhaPage() {
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="bg-[#262633] border-[#262633] h-12 pl-11 pr-11 rounded-xl text-white placeholder:text-gray-500"
+                  className="bg-glass-inset border-white/10 h-12 pl-11 pr-11 rounded-xl text-white placeholder:text-gray-500"
                   required
                   minLength={6}
                 />
@@ -159,7 +160,7 @@ export default function RedefinirSenhaPage() {
                   placeholder="••••••••"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="bg-[#262633] border-[#262633] h-12 pl-11 pr-11 rounded-xl text-white placeholder:text-gray-500"
+                  className="bg-glass-inset border-white/10 h-12 pl-11 pr-11 rounded-xl text-white placeholder:text-gray-500"
                   required
                   minLength={6}
                 />
@@ -187,8 +188,8 @@ export default function RedefinirSenhaPage() {
             {/* Botão Redefinir */}
             <Button
               type="submit"
-              disabled={loading}
-              className="w-full bg-gradient-to-r from-[#ffa506] to-[#ff8800] hover:from-[#ff8800] hover:to-[#ffa506] h-12 rounded-xl text-white font-semibold"
+              disabled={loading || !sessionReady}
+              className="w-full bg-gradient-to-r from-[#ffca08] to-[#ffb817] hover:from-[#ffb817] hover:to-[#ffca08] h-12 rounded-xl text-white font-semibold"
             >
               {loading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
