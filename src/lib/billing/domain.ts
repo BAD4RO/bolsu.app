@@ -11,6 +11,10 @@ export function validatePrice(price:Stripe.Price,cycle:BillingCycle,requireActiv
  assertMode(price,livemode);
  if((requireActive&&!price.active)||price.currency!=='brl'||price.unit_amount!==TEST_PRICES[cycle]||price.type!=='recurring'||price.recurring?.interval!==(cycle==='monthly'?'month':'year')||price.recurring.interval_count!==1||price.recurring.usage_type!=='licensed'||price.billing_scheme!=='per_unit'||price.transform_quantity)throw new Error('Price does not match the test offer');
 }
+// Stripe can schedule cancellation by date while the legacy flag stays false.
+export function hasScheduledCancellation(subscription:Pick<Stripe.Subscription,'cancel_at_period_end'|'cancel_at'>){
+ return subscription.cancel_at_period_end||subscription.cancel_at!=null;
+}
 export function entitlement(status:string,cancel:boolean,payments:BillingPayment[],now=new Date()){
  const paidUntil=payments.filter(p=>p.status==='approved'&&p.paid_until).map(p=>p.paid_until!).sort().at(-1)||null;
  const paid=paidUntil!==null&&new Date(paidUntil)>now&&['active','past_due','canceled'].includes(status);

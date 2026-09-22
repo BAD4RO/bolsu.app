@@ -7,7 +7,7 @@ import type {Database} from '@/lib/database.types';
 import {ApiError} from '@/lib/server/api';
 import {billingConfig,type BillingConfig} from './config';
 import {stripeClient,assertCheckout,assertSubscription,checkoutParameters,recoverCheckout,confirmedPayments} from './provider';
-import {assertMode,objectId,TEST_PRICES,validatePrice,safeStripeURL} from './domain';
+import {hasScheduledCancellation,assertMode,objectId,TEST_PRICES,validatePrice,safeStripeURL} from './domain';
 import type {BillingOrder,BillingCycle,BillingEvent} from './types';
 
 export function billingContext(userId?:string){
@@ -54,7 +54,7 @@ async function syncLocked(c:Context,r:BillingOrder){
  if(!subId){await write(c,r,'apply',{id:null,status:session?.status==='expired'?'expired':'pending',payments:[],cancel:false});return;}
  const sub=await c.stripe.subscriptions.retrieve(subId);assertSubscription(sub,r,c.config.livemode);
  const payments=needsPaymentVerification(sub.status)?await confirmedPayments(c.stripe,r,sub,Date.now(),c.config.livemode):[];
- await write(c,r,'apply',{id:sub.id,status:sub.status,cancel:sub.cancel_at_period_end,current_period_end:new Date(sub.items.data[0].current_period_end*1000).toISOString(),trial_end:sub.trial_end?new Date(sub.trial_end*1000).toISOString():null,payments});
+ await write(c,r,'apply',{id:sub.id,status:sub.status,cancel:hasScheduledCancellation(sub),current_period_end:new Date(sub.items.data[0].current_period_end*1000).toISOString(),trial_end:sub.trial_end?new Date(sub.trial_end*1000).toISOString():null,payments});
 }
 export async function startCheckout(user:string,cycle:BillingCycle){
  const c=billingContext(user);validatePrice(await c.stripe.prices.retrieve(c.config[cycle]),cycle,true,c.config.livemode);

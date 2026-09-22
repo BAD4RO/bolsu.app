@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import Stripe from 'stripe';
 import {billingConfig} from '../src/lib/billing/config';
-import {TEST_PRICES,checkoutSchema,emptyBillingSchema,entitlement,safeStripeURL,validatePrice} from '../src/lib/billing/domain';
+import {hasScheduledCancellation,TEST_PRICES,checkoutSchema,emptyBillingSchema,entitlement,safeStripeURL,validatePrice} from '../src/lib/billing/domain';
 import {checkoutParameters,assertCheckout,confirmedPayments,assertSubscription} from '../src/lib/billing/provider';
 import type {BillingOrder,BillingPayment} from '../src/lib/billing/types';
 
@@ -102,3 +102,15 @@ test('fatura antiga fora da oferta não impede conferência do pagamento atual',
  stripe.invoices.list=(async()=>{const r=await list();const old=structuredClone(r.data[0]);old.id='in_old';old.total=1;old.lines.data[0].period.end=now.getTime()/1000-1;return {...r,data:[old,...r.data]};}) as typeof stripe.invoices.list;
  assert.deepEqual(await confirmedPayments(stripe,order,sub,now.getTime()),[paid]);
 });
+
+ test('cancelamento por data preserva acesso pago e pode ser desfeito',()=>{
+ for(const state of [{cancel_at_period_end:true,cancel_at:null},{cancel_at_period_end:false,cancel_at:1821628742}]){
+ const cancel=hasScheduledCancellation(state);
+ assert.equal(cancel,true);
+ assert.equal(entitlement('active',cancel,[paid],now).cancelAtPeriodEnd,true);
+ assert.equal(entitlement('active',cancel,[paid],now).plan,'plus');
+ }
+ const resumed=hasScheduledCancellation({cancel_at_period_end:false,cancel_at:null});
+ assert.equal(resumed,false);
+ assert.equal(entitlement('active',resumed,[paid],now).status,'active');
+ });
